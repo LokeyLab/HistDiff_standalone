@@ -3,6 +3,8 @@
 This program is to format Signals Cell By Cell
 data before entering HistDiff
 """
+import sys
+
 # import numpy as np
 import pandas as pd
 
@@ -35,7 +37,121 @@ def create_dtypes(headers: list, meta_feats: list | None) -> dict:
     return dtypes
 
 
+def majority_numeric(row: list, threshold=0.65):
+    """
+    Check if a row is mostly made up of floats, if it is
+    then it is most likely a valid row
+    """
+    min_nfloats = int(threshold * len(row))  # make sure n number of cells are floats
+
+    float_count = 0
+    for i, value in enumerate(row):
+        try:
+            float(value)
+            float_count += 1
+
+            if float_count >= min_nfloats:
+                return True
+        except ValueError:
+            pass
+
+    return False
+
+
+def integrity_check(
+    inFile: str, outFile: str, header_len: int, buffer_size: int = 5000
+) -> tuple[int, int]:
+    """
+    Check and clean up the cell by cell data
+    """
+    n_rows_before = 0
+    n_rows_after = 0
+    buffer = []
+
+    with open(inFile, "r") as input_file, open(outFile, "w") as output_File:
+
+        header = input_file.readline()
+        output_File.write(header)
+
+        for line in input_file:
+            n_rows_before += 1
+            row = line.strip().split("\t")
+
+            if (len(row) == header_len) and (majority_numeric(row=row)):
+                buffer.append(line)
+                n_rows_after += 1
+
+                if len(buffer) >= buffer_size:
+                    output_File.writelines(buffer)
+                    buffer.clear()  # reset buffer
+
+        if buffer:
+            output_File.writelines(buffer)
+
+    return n_rows_before, n_rows_after
+
+
+def cleanColNames(colName):
+    return (
+        colName.strip()
+        .replace("\t", ",")
+        .replace("%", "Pct")
+        .replace(" - ", "-")
+        .replace(" ", "_")
+        .replace("µ", "u")
+        .replace("²", "^2")
+        .replace("_(RAWcells-CP2-Cyto_BMR)", "")
+        .replace("_(RAWcells-CP2-EdU_BMR)", "")
+    )
+
+
+def preProcessChunk(
+    chunk: pd.DataFrame, id_col: list[str] | str, useless_features: list[str]
+) -> pd.DataFrame:
+    """Correctly format the datframe"""
+
+    def row(x):
+        strs = map(str, x[id_col])
+        return "_".join(strs)
+
+    chunk["id"] = (
+        chunk.apply(lambda x: row(x), axis=1) if len(id_col) > 1 else chunk[id_col]
+    )
+    chunk.set_index("id", inplace=True)
+    chunk.drop(useless_features, axis=1, inplace=True)
+    chunk.rename(columns=lambda x: cleanColNames(x), inplace=True)
+    chunk.rename(index=lambda x: "".join([x[0], str(int(x[1:]))]), inplace=True)
+
+    feature_verification = [feat for feat in chunk.columns if feat in useless_features]
+    if len(feature_verification) > 0:
+        print("Useless features still exist", file=sys.stderr)
+        print(f"{feature_verification}")
+        raise ValueError
+
+    return chunk
+
+
+def preProcessData(
+    input_file: str,
+    output_file: str,
+    id_col: list[str] | str,
+    useless_features: list[str],
+    dtypes: dict,
+    chunksize=10000,
+) -> None:
+    """Process large tab files"""
+
+    with pd.read_table(input_file, chunksize=chunksize, dtype=dtypes) as reader:
+        for i, chunk in enumerate(reader):
+
+            processed_chunk = preProcessChunk(
+                chunk=chunk, id_col=id_col, useless_features=useless_features
+            )
+            processed_chunk.to_csv(output_file, sep="\t", mode="a", header=(i == 0))
+
+
 def main():
+    # TODO make this a command line program
     file = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/ff1301b8-94c2-11ee-ac86-02420a000112_cellbycell.tsv"
     headers = pd.read_table(file, nrows=0).columns.to_list()
 
@@ -75,6 +191,27 @@ def main():
     df_dtypes = create_dtypes(headers=headers, meta_feats=meta_cols)
 
     id_col = ["WellName"] if "WellName" in common_metaCols else ["Well Name"]
+    useless_features = list(set(common_metaCols) - set(id_col))
+    print(useless_features, common_metaCols)
+
+    header_len = len(headers)
+
+    temp_out = "./temp_store/cellbycell/test.tsv"
+    # n_rows_before, n_rows_after = integrity_check(
+    #     inFile=file, outFile="./temp_store/cellbycell/test.tsv", header_len=header_len
+    # )
+    # print(n_rows_before, n_rows_after)
+
+    preProcessData(
+        input_file=file,
+        output_file=temp_out,
+        id_col=id_col,
+        useless_features=useless_features,
+        dtypes=df_dtypes,
+    )
+
+    test_df = pd.read_table(temp_out, nrows=1)
+    print(test_df.shape)
 
 
 if __name__ == "__main__":
