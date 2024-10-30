@@ -3,6 +3,7 @@
 This program is to format Signals Cell By Cell
 data before entering HistDiff
 """
+import argparse as argp
 import sys
 
 # import numpy as np
@@ -117,8 +118,9 @@ def preProcessChunk(
     chunk["id"] = (
         chunk.apply(lambda x: row(x), axis=1) if len(id_col) > 1 else chunk[id_col]
     )
-    chunk.set_index("id", inplace=True)
+    chunk.set_index(id, inplace=True)
     chunk.drop(useless_features, axis=1, inplace=True)
+    chunk.drop(id_col, axis=1, inplace=True)
     chunk.rename(columns=lambda x: cleanColNames(x), inplace=True)
     chunk.rename(index=lambda x: "".join([x[0], str(int(x[1:]))]), inplace=True)
 
@@ -150,9 +152,55 @@ def preProcessData(
             processed_chunk.to_csv(output_file, sep="\t", mode="a", header=(i == 0))
 
 
+class CommandLine:
+    def __init__(self, inOpts: list[str] | None = None) -> None:
+        self.parser = argp.ArgumentParser(
+            prog="formatSignals.py",
+            description="An optional command line program that formats cell by cell data from Signals correctly",
+            usage="python &(prog)s -[arguments] [value]",
+            add_help=True,
+            prefix_chars="-",
+        )
+
+        self.parser.add_argument(
+            "-i",
+            "--input",
+            action="store",
+            nargs="?",
+            required=True,
+            type=str,
+            help="input data as .tsv",
+        )
+        self.parser.add_argument(
+            "-o",
+            "--output",
+            action="store",
+            nargs="?",
+            required=True,
+            type=str,
+            help="output path and file as .tsv",
+        )
+        self.parser.add_argument(
+            "-if",
+            "--integrityFile",
+            required=False,
+            default=None,
+            nargs="?",
+            help="If used, then it will do an integrity check and clean up the file for proper use",
+        )
+
+        if inOpts is None:
+            self.args = self.parser.parse_args()
+        else:
+            self.args = self.parser.parse_args(inOpts)
+
+
 def main():
-    # TODO make this a command line program
-    file = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/ff1301b8-94c2-11ee-ac86-02420a000112_cellbycell.tsv"
+
+    cl = CommandLine()
+    # file = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/ff1301b8-94c2-11ee-ac86-02420a000112_cellbycell.tsv"
+    file = cl.args.input
+
     headers = pd.read_table(file, nrows=0).columns.to_list()
 
     meta_cols = [
@@ -192,25 +240,29 @@ def main():
 
     id_col = ["WellName"] if "WellName" in common_metaCols else ["Well Name"]
     useless_features = list(set(common_metaCols) - set(id_col))
-    print(useless_features, common_metaCols)
+    # print(useless_features, common_metaCols)
 
     header_len = len(headers)
 
-    temp_out = "./temp_store/cellbycell/test.tsv"
-    # n_rows_before, n_rows_after = integrity_check(
-    #     inFile=file, outFile="./temp_store/cellbycell/test.tsv", header_len=header_len
-    # )
-    # print(n_rows_before, n_rows_after)
+    # temp_out = "./temp_store/cellbycell/test.tsv"
+    temp_out = cl.args.integrityFile
+
+    if temp_out is not None:
+        n_rows_before, n_rows_after = integrity_check(
+            inFile=file, outFile=temp_out, header_len=header_len
+        )
+        # print(n_rows_before, n_rows_after)
 
     preProcessData(
-        input_file=file,
-        output_file=temp_out,
+        input_file=file if temp_out is None else temp_out,
+        output_file=cl.args.output,
         id_col=id_col,
         useless_features=useless_features,
         dtypes=df_dtypes,
+        chunksize=50000,
     )
 
-    test_df = pd.read_table(temp_out, nrows=1)
+    test_df = pd.read_table(cl.args.output, nrows=1)
     print(test_df.shape)
 
 
