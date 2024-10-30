@@ -118,7 +118,7 @@ def preProcessChunk(
     chunk["id"] = (
         chunk.apply(lambda x: row(x), axis=1) if len(id_col) > 1 else chunk[id_col]
     )
-    chunk.set_index(id, inplace=True)
+    chunk.set_index("id", inplace=True)
     chunk.drop(useless_features, axis=1, inplace=True)
     chunk.drop(id_col, axis=1, inplace=True)
     chunk.rename(columns=lambda x: cleanColNames(x), inplace=True)
