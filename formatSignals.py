@@ -178,7 +178,7 @@ class CommandLine:
             "--output",
             action="store",
             nargs="?",
-            required=True,
+            required=False,
             type=str,
             help="output path and file as .tsv",
         )
@@ -255,17 +255,21 @@ def main():
         )
         # print(n_rows_before, n_rows_after)
 
-    preProcessData(
-        input_file=file if temp_out is None else temp_out,
-        output_file=cl.args.output,
-        id_col=id_col,
-        useless_features=useless_features,
-        dtypes=df_dtypes,
-        chunksize=50000,
-    )
+    if cl.args.output is not None:
+        preProcessData(
+            input_file=file if temp_out is None else temp_out,
+            output_file=cl.args.output,
+            id_col=id_col,
+            useless_features=useless_features,
+            dtypes=df_dtypes,
+            chunksize=50000,
+        )
 
-    test_df = pd.read_table(cl.args.output, nrows=1)
-    print(test_df.shape)
+    if cl.args.output is None and temp_out is None:
+        raise KeyError("either -if or -o must be filled")
+
+    # test_df = pd.read_table(cl.args.output, nrows=1)
+    # print(test_df.shape)
 
 
 if __name__ == "__main__":
