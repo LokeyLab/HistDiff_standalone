@@ -21,6 +21,8 @@ def main():
     plate_map = pd.read_csv(plate_map)
     print(plate_map)
     controls = plate_map[plate_map["sample_type"] == "REFERENCE"]["384_Well"].to_list()
+    controls = ["".join([x[0], str(int(x[1:]))]) for x in controls]
+    print(len(controls))
     # cell_by_cell = pd.read_csv(cell_by_cell, sep="\t", chunksize=50000)
     #
     # min_max, _, _ = getMinMaxPlate(chunks=cell_by_cell, id_col="id")

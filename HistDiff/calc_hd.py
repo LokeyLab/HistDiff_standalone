@@ -48,7 +48,6 @@ def calcHistDiffScore(
         chunksize=chunksize,
         dtype=dtypes,
         on_bad_lines="skip",
-        engine="c",
     )
 
     hist_df: pd.DataFrame = pd.DataFrame()
@@ -59,6 +58,8 @@ def calcHistDiffScore(
         currDf = currDf[currDf.index.isin(plateDef)]
 
         wells_used = currDf.index.unique()
+
+        # first iter
         if count == 0:
             hist_df = pd.concat(
                 [
@@ -102,7 +103,7 @@ def calcHistDiffScore(
     for group in blockDef:
         select_wells = set(["".join([i[0], i[1:]]) for i in group])
 
-        hd_group = hist_df[hist_df.index.str.contains("|".join(list(select_wells)))]
+        hd_group = hist_df[hist_df.index.isin(select_wells)]
 
         print(select_wells, group, file=sys.stderr)
         print(hd_group.shape, file=sys.stderr)
@@ -115,6 +116,10 @@ def calcHistDiffScore(
         vehicle_control_df = pd.DataFrame(
             vehicle_control_df, index=hd_group.columns, columns=["VEHICLE_CONTROL"]
         ).T
+
+        vehicle_control_df.to_csv(
+            "~/git_repos/HistDiff_standalone/temp_store/cntrl_new.csv"
+        )
 
         # Add controls
         print("Adding vehicle controls to table", file=sys.stderr)
