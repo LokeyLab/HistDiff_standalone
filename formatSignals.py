@@ -9,6 +9,8 @@ import sys
 # import numpy as np
 import pandas as pd
 
+from HistDiff.utils import create_dtypes
+
 
 def findCommonFeats(trueFeats: list, badFeats: list) -> list:
     commonFeats = list(set(trueFeats) & set(badFeats))
@@ -25,17 +27,17 @@ def findCommonFeats(trueFeats: list, badFeats: list) -> list:
     return commonFeats
 
 
-def create_dtypes(headers: list, meta_feats: list | None) -> dict:
-    """
-    Define th datatypes for each column in the dataset
-    """
-    if meta_feats is not None:
-        dtypes = {feat: str for feat in meta_feats}
-        dtypes.update({feat: float for feat in headers if feat not in meta_feats})
-    else:
-        dtypes = {feat: float for feat in headers}
-
-    return dtypes
+# def create_dtypes(headers: list, meta_feats: list | None) -> dict:
+#     """
+#     Define th datatypes for each column in the dataset
+#     """
+#     if meta_feats is not None:
+#         dtypes = {feat: str for feat in meta_feats}
+#         dtypes.update({feat: float for feat in headers if feat not in meta_feats})
+#     else:
+#         dtypes = {feat: float for feat in headers}
+#
+#     return dtypes
 
 
 def majority_numeric(row: list, threshold=0.65):

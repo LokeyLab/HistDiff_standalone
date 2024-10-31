@@ -1,5 +1,10 @@
 #!/usr/bin/env python
+from string import ascii_uppercase
+
 import numpy as np
+import pandas as pd
+
+from HistDiff.histograms import Hist1D
 
 WELL_384_LETTERS = [i for i in ascii_uppercase[:16]]
 WELL_384_NUMBERS = [str(i) for i in range(1, 25)]
@@ -35,3 +40,24 @@ def normalize(x):
         out=np.zeros_like(x, dtype="longdouble"),
         where=np.repeat(x.sum(), len(x)) != 0,
     )
+
+
+def createHistRow(min_max: pd.DataFrame, nbins: int) -> pd.DataFrame:
+    histRow = min_max.apply(
+        lambda x: Hist1D(nbins=nbins, xlow=x["xlow"], xhigh=x["xhigh"]), axis=1
+    )
+    histRow = pd.DataFrame(histRow).T
+    return histRow
+
+
+def create_dtypes(headers: list, meta_feats: list | None) -> dict:
+    """
+    Define th datatypes for each column in the dataset
+    """
+    if meta_feats is not None:
+        dtypes = {feat: str for feat in meta_feats}
+        dtypes.update({feat: float for feat in headers if feat not in meta_feats})
+    else:
+        dtypes = {feat: float for feat in headers}
+
+    return dtypes

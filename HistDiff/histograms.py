@@ -1,5 +1,9 @@
 #!/usr/bin/env python
+import sys
+
 import numpy as np
+import pandas as pd
+from pandas.io.parsers.readers import TextFileReader
 
 
 class Hist1D(object):
@@ -34,3 +38,60 @@ def HistSquareDiff(exp, ctrl, factor=1):
     diff **= 2
 
     return diff.sum(axis=1) * negScore
+
+
+def getMinMaxPlate(
+    chunks: TextFileReader, id_col: list[str] | str, verbose=True, probOut=None
+) -> tuple[pd.DataFrame, list[str], pd.DataFrame]:
+    """Gets the min and max of the features and returns features that are useful"""
+    xlow = []
+    xHigh = []
+
+    feats: list[str] = []
+
+    for count, chunk in enumerate(chunks, start=1):
+        currDf = chunk
+        currDf.set_index(id_col, inplace=True)
+        currDf = currDf.replace(to_replace=-np.inf, value=np.nan)
+        currDf = currDf.replace(to_replace=np.inf, value=np.nan)
+
+        if count == 1:
+            feats = currDf.columns.to_list()
+
+        xlow.append(currDf.min(axis=0).to_list())
+        xHigh.append(currDf.max(axis=0).to_list())
+
+    xlow = pd.DataFrame(xlow).min(axis=0)
+    xhigh = pd.DataFrame(xHigh).max(axis=0)
+
+    # adjusting the high ranges
+    xhigh[xhigh == xlow] = xlow[xhigh == xlow] + xlow[xhigh == xlow] * 0.5
+    xhigh[xhigh == xlow] = xlow[xhigh == xlow] + 1
+
+    min_max = pd.DataFrame(
+        {"xlow": xlow.to_list(), "xhigh": xhigh.to_list()}, index=feats
+    )
+
+    bad_features = {
+        feature: "noValues"
+        for feature in min_max[
+            min_max.apply(lambda x: all(np.isnan(x)), axis=1)
+        ].index.values.tolist()
+    }
+    problematic_features_df = None
+    if bad_features and verbose:
+        print(
+            f"MinMax: No values have been found in the following features: "
+            f'{" | ".join(bad_features.keys())}',
+            file=sys.stderr,
+        )
+        problematic_features_df = pd.Series(bad_features, name="histdiff_issue")
+        if probOut is not None:
+            problematic_features_df.to_csv(f"{probOut}_problematicFeats.csv")
+
+    # Get good features and min_max table
+    min_max = min_max[~min_max.apply(lambda x: all(np.isnan(x)), axis=1)]
+    good_features = min_max.index.values.tolist()
+    print(f"length of good features is: {len(good_features)}", file=sys.stderr)
+
+    return (min_max, good_features, problematic_features_df)
