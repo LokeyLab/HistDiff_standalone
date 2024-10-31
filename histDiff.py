@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 
 from HistDiff.calc_hd import calcHistDiffScore, create_dtypes
-from HistDiff.histograms import getMinMaxPlate
 
 
 def main():
