@@ -39,23 +39,26 @@ def main():
         base_n = os.path.splitext(os.path.basename(platemap))[0]
         final_out = os.path.join(outDir, f"{base_n}.csv")
 
-        args = lambda x, y: [
-            "-i",
-            cell_by_cellData,
-            "-c",
-            x,
-            "-o",
-            y,
-            "-ref",
-            "sample_type",
-            "-wells",
-            "384_Well",
-            "-id",
-            "id",
-        ]
-        run(["python", script] + args(x=platemap, y=final_out))
+        if not os.path.exists(final_out):
+            args = lambda x, y: [
+                "-i",
+                cell_by_cellData,
+                "-c",
+                x,
+                "-o",
+                y,
+                "-ref",
+                "sample_type",
+                "-wells",
+                "384_Well",
+                "-id",
+                "id",
+            ]
+            run(["python", script] + args(x=platemap, y=final_out))
 
-        print(final_out)
+            print(final_out)
+        else:
+            print(f"File already exists: {final_out}", file=sys.stderr)
 
 
 if __name__ == "__main__":
