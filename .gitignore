@@ -162,3 +162,10 @@ cython_debug/
 #.idea/
 
 temp_store/
+
+
+# Added by cargo
+
+/target
+
+Cargo.lock
