@@ -1,6 +1,12 @@
+use core::f64;
+use csv::StringRecord;
 use ndarray::prelude::*;
 use ndarray::{Array1, Array2, Axis};
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read};
+use std::path::Path;
 use std::usize;
 
 #[allow(dead_code)]
@@ -85,4 +91,78 @@ pub fn hist_square_diff(
     let result = sum_diff * &neg_score;
 
     return Ok(result);
+}
+
+#[derive(Debug, Clone)]
+pub struct MinMax {
+    pub xlow: f64,
+    pub xhigh: f64,
+}
+
+#[derive(Debug)]
+pub struct MinMaxPlateResult {
+    pub min_max: Vec<(String, MinMax)>,
+    pub features: Vec<String>,
+    pub problemativ_features: Option<Vec<String>>,
+}
+
+pub fn get_min_max_plate<P: AsRef<Path>>(
+    file_path: P,
+    id_cols: &[String],
+    verbose: bool,
+    prob_out: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    let mut csv_reader = csv::ReaderBuilder::new()
+        .delimiter(b'\t')
+        .has_headers(true)
+        .from_reader(reader);
+
+    let headers = csv_reader.headers()?.clone();
+    let headers_vec = headers.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+    // println!("{:?}", headers_vec);
+
+    let id_col_indices: Vec<usize> = id_cols
+        .iter()
+        .map(|col| headers.iter().position(|h| h == col))
+        .collect::<Option<Vec<_>>>()
+        .ok_or("ID column not foind in headers")?;
+
+    let feature_indices: Vec<usize> = (0..headers.len())
+        .filter(|i| !id_col_indices.contains(i))
+        .collect();
+
+    let mut xlow: HashMap<String, f64> = HashMap::new();
+    let mut xhigh: HashMap<String, f64> = HashMap::new();
+    let mut feats: Vec<String> = Vec::new();
+    let mut problematic_features = HashSet::new();
+
+    feats = feature_indices
+        .iter()
+        .map(|&x| headers[x].to_string())
+        .collect();
+
+    for feat in &feats {
+        xlow.insert(feat.clone(), f64::INFINITY);
+        xhigh.insert(feat.clone(), f64::INFINITY);
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod min_max_test {
+
+    use super::*;
+
+    #[test]
+    fn test_min_max_text() {
+        let fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/024ebc52-9579-11ef-b032-02420a00010f_cellbycell_HD_input.tsv";
+        let id_cols = vec!["WellID".to_string()];
+
+        get_min_max_plate(fp, &id_cols, true, None).unwrap();
+    }
 }
