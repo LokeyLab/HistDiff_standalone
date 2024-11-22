@@ -1,7 +1,7 @@
 use core::f64;
-use csv::StringRecord;
 use ndarray::prelude::*;
 use ndarray::{Array1, Array2, Axis};
+use rayon::iter::IntoParallelIterator;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
@@ -111,7 +111,7 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
     id_cols: &[String],
     verbose: bool,
     prob_out: Option<&str>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<MinMaxPlateResult, Box<dyn Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
@@ -138,19 +138,121 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
     let mut xlow: HashMap<String, f64> = HashMap::new();
     let mut xhigh: HashMap<String, f64> = HashMap::new();
     let mut feats: Vec<String> = Vec::new();
-    let mut problematic_features = HashSet::new();
+    let mut problematic_features: HashSet<String> = HashSet::new();
 
     feats = feature_indices
         .iter()
         .map(|&x| headers[x].to_string())
         .collect();
 
+    // initialize xlow and xhigh
     for feat in &feats {
         xlow.insert(feat.clone(), f64::INFINITY);
-        xhigh.insert(feat.clone(), f64::INFINITY);
+        xhigh.insert(feat.clone(), f64::NEG_INFINITY);
     }
 
-    Ok(())
+    for result in csv_reader.records() {
+        let record = result?;
+
+        // println!("{:?}", record);
+        for &i in &feature_indices {
+            let feat = &headers[i];
+            let field = &record[i];
+            let value = field.parse::<f64>().ok();
+
+            // try to find the min and max
+            match value {
+                Some(v) if v.is_finite() => {
+                    xlow.entry(feat.to_string()).and_modify(|e| *e = e.min(v));
+                    xhigh.entry(feat.to_string()).and_modify(|e| *e = e.max(v));
+                }
+
+                _ => {
+                    problematic_features.insert(feat.to_string());
+                }
+            }
+        }
+    }
+
+    // adjust the xhigh when xhigh == xlow
+    for feat in &feats {
+        let low = *xlow.get(feat).unwrap_or(&f64::NAN);
+        let high = *xhigh.get(feat).unwrap_or(&f64::NAN);
+        if low.is_nan() || high.is_nan() {
+            problematic_features.insert(feat.clone());
+            continue;
+        }
+
+        if low == high {
+            let adjusted_high = if low != 0.0 {
+                low + low * 0.5
+            } else {
+                low + 1.0
+            };
+
+            xhigh.insert(feat.clone(), adjusted_high);
+        }
+    }
+
+    let mut min_max_vec: Vec<(String, MinMax)> = Vec::new();
+
+    for feat in &feats {
+        let low = xlow.get(feat).cloned();
+        let high = xhigh.get(feat).cloned();
+        if let (Some(low), Some(high)) = (low, high) {
+            if low.is_nan() || high.is_nan() {
+                problematic_features.insert(feat.clone());
+            } else {
+                min_max_vec.push((
+                    feat.clone(),
+                    MinMax {
+                        xlow: low,
+                        xhigh: high,
+                    },
+                ));
+            }
+        } else {
+            problematic_features.insert(feat.clone());
+        }
+    }
+
+    //remove problematic features
+    feats.retain(|feat| !problematic_features.contains(feat));
+    min_max_vec.retain(|(feat, _)| !problematic_features.contains(feat));
+
+    // outputting problemativ features
+    let problematic_features_vec = if !problematic_features.is_empty() {
+        let problematic_features_list = problematic_features.into_iter().collect::<Vec<_>>();
+        if verbose {
+            eprintln!(
+                "MinMax: No values have been found in the following features: {}",
+                problematic_features_list.join(" | ")
+            );
+        }
+        if let Some(prob_path_out) = prob_out {
+            //let's write this out to a file'
+            use std::fs::File;
+            use std::io::Write;
+
+            let mut file = File::create(format!("{}_problematicFeats.csv", prob_path_out))?;
+            for feat in &problematic_features_list {
+                writeln!(file, "{},noValues", feat)?;
+            }
+        }
+        Some(problematic_features_list)
+    } else {
+        None
+    };
+
+    if verbose {
+        eprintln!("length of good feats: {}", feats.len());
+    }
+
+    return Ok(MinMaxPlateResult {
+        min_max: min_max_vec,
+        features: feats,
+        problemativ_features: problematic_features_vec,
+    });
 }
 
 #[cfg(test)]
@@ -161,7 +263,7 @@ mod min_max_test {
     #[test]
     fn test_min_max_text() {
         let fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/024ebc52-9579-11ef-b032-02420a00010f_cellbycell_HD_input.tsv";
-        let id_cols = vec!["WellID".to_string()];
+        let id_cols = vec!["id".to_string()];
 
         get_min_max_plate(fp, &id_cols, true, None).unwrap();
     }
