@@ -174,6 +174,8 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
         }
     }
 
+    println!("Finished reading file!"); // WARN: delete this line
+
     // adjust the xhigh when xhigh == xlow
     for feat in &feats {
         let low = *xlow.get(feat).unwrap_or(&f64::NAN);
