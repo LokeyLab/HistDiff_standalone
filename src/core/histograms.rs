@@ -182,10 +182,7 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
         let high = *xhigh.get(feat).unwrap_or(&f64::NAN);
         if low.is_nan() || high.is_nan() {
             problematic_features.insert(feat.clone());
-            continue;
-        }
-
-        if low == high {
+        } else if low == high {
             let adjusted_high = if low != 0.0 {
                 low + low * 0.5
             } else {
