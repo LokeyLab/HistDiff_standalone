@@ -123,7 +123,7 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
     let headers = csv_reader.headers()?.clone();
     let headers_vec = headers.iter().map(|s| s.to_string()).collect::<Vec<_>>();
 
-    // println!("{:?}", headers_vec);
+    println!("{:?}", headers_vec.len());
 
     let id_col_indices: Vec<usize> = id_cols
         .iter()
@@ -138,7 +138,6 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
     let mut xlow: HashMap<String, f64> = HashMap::new();
     let mut xhigh: HashMap<String, f64> = HashMap::new();
     let mut feats: Vec<String> = Vec::new();
-    let mut problematic_features: HashSet<String> = HashSet::new();
 
     feats = feature_indices
         .iter()
@@ -147,8 +146,8 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
 
     // initialize xlow and xhigh
     for feat in &feats {
-        xlow.insert(feat.clone(), f64::INFINITY);
-        xhigh.insert(feat.clone(), f64::NEG_INFINITY);
+        xlow.insert(feat.clone(), f64::NAN);
+        xhigh.insert(feat.clone(), f64::NAN);
     }
 
     for result in csv_reader.records() {
@@ -158,30 +157,41 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
         for &i in &feature_indices {
             let feat = &headers[i];
             let field = &record[i];
-            let value = field.parse::<f64>().ok();
+            if let Ok(value) = field.parse::<f64>() {
+                if value.is_finite() {
+                    //xlow
+                    xlow.entry(feat.to_string()).and_modify(|e| {
+                        if e.is_nan() {
+                            *e = value;
+                        } else {
+                            *e = e.min(value);
+                        }
+                    });
 
-            // try to find the min and max
-            match value {
-                Some(v) if v.is_finite() => {
-                    xlow.entry(feat.to_string()).and_modify(|e| *e = e.min(v));
-                    xhigh.entry(feat.to_string()).and_modify(|e| *e = e.max(v));
-                }
-
-                _ => {
-                    problematic_features.insert(feat.to_string());
-                }
+                    //xhigh
+                    xhigh.entry(feat.to_string()).and_modify(|e| {
+                        if e.is_nan() {
+                            *e = value;
+                        } else {
+                            *e = e.max(value);
+                        }
+                    });
+                };
             }
-        }
-    }
 
-    println!("Finished reading file!"); // WARN: delete this line
+            // skip nans
+        }
+
+        // skip other gibberish
+    }
 
     // adjust the xhigh when xhigh == xlow
     for feat in &feats {
         let low = *xlow.get(feat).unwrap_or(&f64::NAN);
         let high = *xhigh.get(feat).unwrap_or(&f64::NAN);
         if low.is_nan() || high.is_nan() {
-            problematic_features.insert(feat.clone());
+            continue;
+            // problematic_features.insert(feat.clone());
         } else if low == high {
             let adjusted_high = if low != 0.0 {
                 low + low * 0.5
@@ -193,31 +203,35 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
         }
     }
 
-    let mut min_max_vec: Vec<(String, MinMax)> = Vec::new();
-
+    // get problematic features
+    let mut problematic_features: HashSet<String> = HashSet::new();
     for feat in &feats {
-        let low = xlow.get(feat).cloned();
-        let high = xhigh.get(feat).cloned();
-        if let (Some(low), Some(high)) = (low, high) {
-            if low.is_nan() || high.is_nan() {
-                problematic_features.insert(feat.clone());
-            } else {
-                min_max_vec.push((
-                    feat.clone(),
-                    MinMax {
-                        xlow: low,
-                        xhigh: high,
-                    },
-                ));
-            }
-        } else {
+        let low = *xlow.get(feat).unwrap();
+        let high = *xhigh.get(feat).unwrap();
+        if low.is_nan() && high.is_nan() {
             problematic_features.insert(feat.clone());
         }
     }
 
+    let mut min_max_vec: Vec<(String, MinMax)> = Vec::new();
+
+    for feat in &feats {
+        if problematic_features.contains(feat) {
+            continue;
+        }
+        let low = xlow.get(feat).unwrap();
+        let high = xhigh.get(feat).unwrap();
+        min_max_vec.push((
+            feat.clone(),
+            MinMax {
+                xlow: *low,
+                xhigh: *high,
+            },
+        ))
+    }
+
     //remove problematic features
     feats.retain(|feat| !problematic_features.contains(feat));
-    min_max_vec.retain(|(feat, _)| !problematic_features.contains(feat));
 
     // outputting problemativ features
     let problematic_features_vec = if !problematic_features.is_empty() {
@@ -244,6 +258,9 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
     };
 
     if verbose {
+        if let Some(ref prob_vec) = problematic_features_vec {
+            eprintln!("len of bad feats: {}", prob_vec.len())
+        }
         eprintln!("length of good feats: {}", feats.len());
     }
 
@@ -264,6 +281,13 @@ mod min_max_test {
         let fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/024ebc52-9579-11ef-b032-02420a00010f_cellbycell_HD_input.tsv";
         let id_cols = vec!["id".to_string()];
 
-        get_min_max_plate(fp, &id_cols, true, None).unwrap();
+        let min_max = get_min_max_plate(fp, &id_cols, true, None).unwrap();
+
+        // for (feat, minmax) in min_max.min_max.iter() {
+        //     println!(
+        //         "FEAT: {:?} <-> low: {:?} high {:?}",
+        //         feat, minmax.xlow, minmax.xhigh
+        //     );
+        // }
     }
 }
