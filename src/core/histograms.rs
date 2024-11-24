@@ -1,7 +1,7 @@
 use core::f64;
-use ndarray::prelude::*;
+use dashmap::DashMap;
 use ndarray::{Array1, Array2, Axis};
-use rayon::iter::IntoParallelIterator;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
@@ -135,8 +135,10 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
         .filter(|i| !id_col_indices.contains(i))
         .collect();
 
-    let mut xlow: HashMap<String, f64> = HashMap::new();
-    let mut xhigh: HashMap<String, f64> = HashMap::new();
+    // let mut xlow: HashMap<String, f64> = HashMap::new();
+    // let mut xhigh: HashMap<String, f64> = HashMap::new();
+    let xlow: DashMap<String, f64> = DashMap::new();
+    let xhigh: DashMap<String, f64> = DashMap::new();
     let mut feats: Vec<String> = Vec::new();
 
     feats = feature_indices
@@ -154,7 +156,8 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
         let record = result?;
 
         // println!("{:?}", record);
-        for &i in &feature_indices {
+        feature_indices.par_iter().for_each(|&i| {
+            // for &i in &feature_indices {
             let feat = &headers[i];
             let field = &record[i];
             if let Ok(value) = field.parse::<f64>() {
@@ -180,10 +183,13 @@ pub fn get_min_max_plate<P: AsRef<Path>>(
             }
 
             // skip nans
-        }
+        });
 
         // skip other gibberish
     }
+
+    let xlow: HashMap<String, f64> = xlow.into_iter().collect();
+    let mut xhigh: HashMap<String, f64> = xhigh.into_iter().collect();
 
     // adjust the xhigh when xhigh == xlow
     for feat in &feats {
@@ -283,11 +289,15 @@ mod min_max_test {
 
         let min_max = get_min_max_plate(fp, &id_cols, true, None).unwrap();
 
-        // for (feat, minmax) in min_max.min_max.iter() {
-        //     println!(
-        //         "FEAT: {:?} <-> low: {:?} high {:?}",
-        //         feat, minmax.xlow, minmax.xhigh
-        //     );
-        // }
+        let print_minmax = false;
+
+        if print_minmax {
+            for (feat, minmax) in min_max.min_max.iter() {
+                println!(
+                    "FEAT: {:?} <-> low: {:?} high {:?}",
+                    feat, minmax.xlow, minmax.xhigh
+                );
+            }
+        }
     }
 }
