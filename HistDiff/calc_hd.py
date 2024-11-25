@@ -117,9 +117,9 @@ def calcHistDiffScore(
             vehicle_control_df, index=hd_group.columns, columns=["VEHICLE_CONTROL"]
         ).T
 
-        vehicle_control_df.to_csv(
-            "~/git_repos/HistDiff_standalone/temp_store/cntrl_new.csv"
-        )
+        # vehicle_control_df.to_csv(
+        #     "~/git_repos/HistDiff_standalone/temp_store/cntrl_new.csv"
+        # )
 
         # Add controls
         print("Adding vehicle controls to table", file=sys.stderr)
