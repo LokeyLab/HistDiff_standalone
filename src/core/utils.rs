@@ -1,4 +1,6 @@
 #![allow(unused_parens)]
+
+use std::u8;
 pub fn exponential_smoothing(x: &[f64], alpha: f64) -> Vec<f64> {
     let n = x.len();
     let mut smoothing: Vec<f64> = Vec::with_capacity(n);
@@ -51,6 +53,22 @@ pub fn clean_well_names(well_names: &[String]) -> Vec<String> {
         .collect()
 }
 
+pub fn plate_definition() -> Vec<String> {
+    const WELL_384_LETTERS: std::ops::RangeInclusive<u8> = ('A' as u8)..=('P' as u8);
+    const WELL_384_NUMBERS: std::ops::RangeInclusive<i32> = (1..=24);
+
+    let mut res: Vec<String> = Vec::new();
+
+    for letter in WELL_384_LETTERS {
+        for num in WELL_384_NUMBERS {
+            let format_string = format!("{}{}", letter as char, num);
+            res.push(format_string);
+        }
+    }
+
+    return res;
+}
+
 #[cfg(test)]
 mod utils_test {
     use super::*;
@@ -65,5 +83,11 @@ mod utils_test {
 
         let answer = vec![1.25, 2.0, 3.0, 4.0, 4.75];
         assert_eq!(smoothed, answer);
+    }
+
+    #[test]
+    fn test_plate_def() {
+        println!("{:?}", plate_definition());
+        println!("{:?}", plate_definition().len());
     }
 }
