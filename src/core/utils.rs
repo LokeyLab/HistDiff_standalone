@@ -1,4 +1,4 @@
-#[allow(unused_parens)]
+#![allow(unused_parens)]
 pub fn exponential_smoothing(x: &[f64], alpha: f64) -> Vec<f64> {
     let n = x.len();
     let mut smoothing: Vec<f64> = Vec::with_capacity(n);
@@ -30,6 +30,25 @@ pub fn normalize(x: &[f64]) -> Vec<f64> {
     } else {
         return x.iter().map(|&e| e / sum).collect();
     }
+}
+
+pub fn clean_well_names(well_names: &[String]) -> Vec<String> {
+    well_names
+        .iter()
+        .map(|name| {
+            if name.len() >= 2 {
+                let letter = &name[0..1];
+                let number_str = &name[1..];
+
+                match number_str.parse::<u32>() {
+                    Ok(number) => format!("{}{}", letter, number),
+                    Err(_) => name.clone(),
+                }
+            } else {
+                name.clone()
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
