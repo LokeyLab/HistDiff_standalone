@@ -3,11 +3,15 @@ use super::histograms::*;
 use super::utils::*;
 use csv;
 use dashmap::DashMap;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
+use std::time::Instant;
 use std::usize;
 
 pub fn calculate_scores<P: AsRef<Path>>(
@@ -57,8 +61,9 @@ pub fn calculate_scores<P: AsRef<Path>>(
     //      feature: Histogram Struct
     //      }
     // }
-    let mut histograms: DashMap<String, DashMap<String, Hist1D>> = DashMap::new();
+    let histograms: DashMap<String, HashMap<String, Hist1D>> = DashMap::new();
 
+    let start = Instant::now(); // WARN: delete this
     for res in csv_reader.records() {
         let record = res?;
 
@@ -79,7 +84,44 @@ pub fn calculate_scores<P: AsRef<Path>>(
         if !plate_def.contains(&curr_well) {
             continue;
         }
+
+        let feature_values: Vec<(&str, f64)> = feat_idx
+            .par_iter()
+            .map(|&i| {
+                let feat_name = &headers[i];
+                let value = record.get(i).unwrap().parse::<f64>().unwrap_or(f64::NAN);
+                (feat_name, value)
+            })
+            .collect();
+
+        // init histograms
+        histograms.entry(curr_well.clone()).or_insert_with(|| {
+            features
+                .par_iter()
+                .map(|feat| {
+                    let (_min_max_feat, min_max_vals) =
+                        min_max_map.iter().find(|(f, _)| f == feat).unwrap();
+                    (
+                        feat.clone(),
+                        Hist1D::new(nbins, min_max_vals.xlow, min_max_vals.xhigh),
+                    )
+                })
+                .collect::<HashMap<String, Hist1D>>()
+        });
+
+        let mut well_histogram = histograms.get_mut(&curr_well).unwrap();
+
+        for (feat, value) in feature_values {
+            if let Some(hist) = well_histogram.get_mut(feat) {
+                let ref_value = &[value];
+                hist.fill(ref_value);
+            }
+        }
     }
+
+    let end = start.elapsed(); // WARN: delete this
+    println!("INIT LOOP TIME: {:?}", end);
+    println!("function reached the end!");
 
     Ok(())
 }
@@ -95,6 +137,15 @@ mod hd_test {
         let vehicle_cntrls = vec!["A1".to_string(), "P24".to_string()];
         let nbins = 20;
 
-        let _ = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, true, None, None);
+        let _ = calculate_scores(
+            fp,
+            &id_cols,
+            &vehicle_cntrls,
+            nbins,
+            None,
+            false,
+            None,
+            None,
+        );
     }
 }
