@@ -64,6 +64,16 @@ impl Hist1D {
     pub fn normalize(&mut self) {
         self.counts = normalize(&self.counts)
     }
+
+    pub fn add(&mut self, other: &Hist1D) {
+        assert_eq!(self.nbins, other.nbins);
+        assert_eq!(self.xlow, other.xlow);
+        assert_eq!(self.xhigh, self.xhigh);
+
+        for (c1, c2) in self.counts.iter_mut().zip(other.counts.iter()) {
+            *c1 += c2;
+        }
+    }
 }
 
 pub fn hist_square_diff(
