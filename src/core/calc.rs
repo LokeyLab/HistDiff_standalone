@@ -61,7 +61,7 @@ pub fn calculate_scores<P: AsRef<Path>>(
     //      feature: Histogram Struct
     //      }
     // }
-    let histograms: DashMap<String, HashMap<String, Hist1D>> = DashMap::new();
+    let mut histograms: HashMap<String, HashMap<String, Hist1D>> = HashMap::new();
 
     let start = Instant::now(); // WARN: delete this
     for res in csv_reader.records() {
@@ -109,7 +109,7 @@ pub fn calculate_scores<P: AsRef<Path>>(
                 .collect::<HashMap<String, Hist1D>>()
         });
 
-        let mut well_histogram = histograms.get_mut(&curr_well).unwrap();
+        let well_histogram = histograms.get_mut(&curr_well).unwrap();
 
         for (feat, value) in feature_values {
             if let Some(hist) = well_histogram.get_mut(feat) {
@@ -119,7 +119,33 @@ pub fn calculate_scores<P: AsRef<Path>>(
         }
     }
 
-    let end = start.elapsed(); // WARN: delete this
+    // smoothing and normalization
+    for wells in histograms.values_mut() {
+        for hist in wells.values_mut() {
+            hist.smooth(0.25);
+            hist.normalize();
+        }
+    }
+
+    let well_384 = plate_def.clone();
+    let block_def = if let Some(mut blocks) = block_def {
+        // clean well names in block_def
+        let mut undefined_blocks: HashSet<String> = HashSet::new();
+        for block in &blocks {
+            let cleaned = clean_well_names(block);
+            undefined_blocks.extend(cleaned);
+        }
+        let undefined_blocks: HashSet<String> = well_384
+            .into_iter()
+            .filter(|well| !undefined_blocks.contains(well))
+            .collect();
+        blocks.push(undefined_blocks.into_iter().collect());
+        blocks
+    } else {
+        vec![well_384]
+    };
+
+    let end = start.elapsed(); // WARNING: delete this
     println!("INIT LOOP TIME: {:?}", end);
     println!("function reached the end!");
 
