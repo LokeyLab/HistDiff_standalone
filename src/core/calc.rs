@@ -127,16 +127,6 @@ pub fn calculate_scores<P: AsRef<Path>>(
         let end = start.elapsed(); // WARNING: delete this
         println!("INIT LOOP TIME: {:?}", end);
     }
-    // smoothing and normalization
-    // if verbose {
-    //     println!("Smoothing and normalizing histograms");
-    // }
-    // for wells in histograms.values_mut() {
-    //     for hist in wells.values_mut() {
-    //         hist.smooth(0.25);
-    //         hist.normalize();
-    //     }
-    // }
 
     let start = Instant::now(); // WARNING: this is the start of the second timer
 
