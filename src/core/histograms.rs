@@ -1,4 +1,4 @@
-#![allow(unused_imports)]
+#![allow(unused_imports, dead_code)]
 use core::f64;
 use dashmap::DashMap;
 use ndarray::{Array1, Array2, Axis};
@@ -12,7 +12,7 @@ use std::usize;
 
 use super::utils::{exponential_smoothing, normalize};
 
-#[allow(dead_code)]
+#[derive(Clone)]
 pub struct Hist1D {
     nbins: usize,
     xlow: f64,

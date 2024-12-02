@@ -1,9 +1,11 @@
 #![allow(unused_imports, dead_code)]
 use super::histograms::*;
 use super::utils::*;
-use core::f64;
+use core::time;
 use csv;
 use dashmap::DashMap;
+use ndarray::Array1;
+use ndarray::Array2;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
@@ -64,7 +66,8 @@ pub fn calculate_scores<P: AsRef<Path>>(
     // }
     let mut histograms: HashMap<String, HashMap<String, Hist1D>> = HashMap::new();
 
-    let start = Instant::now(); // WARN: delete this
+    let start = Instant::now(); // WARN: you can delete this if you want
+
     for res in csv_reader.records() {
         let record = res?;
 
@@ -120,13 +123,22 @@ pub fn calculate_scores<P: AsRef<Path>>(
         }
     }
 
-    // smoothing and normalization
-    for wells in histograms.values_mut() {
-        for hist in wells.values_mut() {
-            hist.smooth(0.25);
-            hist.normalize();
-        }
+    if verbose {
+        let end = start.elapsed(); // WARNING: delete this
+        println!("INIT LOOP TIME: {:?}", end);
     }
+    // smoothing and normalization
+    // if verbose {
+    //     println!("Smoothing and normalizing histograms");
+    // }
+    // for wells in histograms.values_mut() {
+    //     for hist in wells.values_mut() {
+    //         hist.smooth(0.25);
+    //         hist.normalize();
+    //     }
+    // }
+
+    let start = Instant::now(); // WARNING: this is the start of the second timer
 
     let well_384 = plate_def.clone();
     let block_def = if let Some(mut blocks) = block_def {
@@ -153,13 +165,124 @@ pub fn calculate_scores<P: AsRef<Path>>(
             .into_iter()
             .collect::<HashSet<String>>();
 
-        // grab wells from selected wells
+        // grab histograms from selected wells
+        let mut hd_group: HashMap<String, HashMap<String, Hist1D>> = histograms
+            .iter()
+            .filter(|(well_id, _)| select_wells.contains(*well_id))
+            .map(|(well_id, hists)| (well_id.clone(), hists.clone()))
+            .collect();
+
+        if verbose {
+            println!("Processing group with wells {:?}", select_wells);
+            println!("Length of group: {:?}", hd_group.len());
+        }
+
+        let mut cntrl_hists: HashMap<String, Hist1D> = HashMap::new();
+
+        for feat in &features {
+            let mut sum_hist: Option<Hist1D> = None;
+
+            for well in vehicle_cntrls {
+                if let Some(hist) = hd_group.get(well).and_then(|hists| hists.get(feat)) {
+                    if let Some(ref mut sum_hist) = sum_hist {
+                        sum_hist.add(hist);
+                    } else {
+                        sum_hist = Some(hist.clone())
+                    }
+                }
+            }
+
+            if let Some(hist) = sum_hist {
+                cntrl_hists.insert(feat.clone(), hist);
+            }
+        }
+
+        //add vehicle controls to hist diff group
+        if verbose {
+            println!("Adding control sum onto HD group");
+        }
+        hd_group.insert("CNTRL".to_string(), cntrl_hists);
+
+        // smooth and normalize histograms
+        if verbose {
+            println!("Smoothing and normalizing histograms");
+        }
+        for histogram_collection in hd_group.values_mut() {
+            for hist in histogram_collection.values_mut() {
+                hist.smooth(0.25);
+                hist.normalize();
+            }
+        }
+
+        // hist square diff
+        if verbose {
+            println!("calculating scores!");
+        }
+
+        let per_feature_scores: Vec<HashMap<String, HashMap<String, f64>>> = features
+            .par_iter()
+            .map(|feat| {
+                let mut local_scores: HashMap<String, HashMap<String, f64>> = HashMap::new();
+
+                // collect exp hist for feature
+                let mut exp_hists: Vec<Vec<f64>> = Vec::new();
+                let mut well_ids: Vec<String> = Vec::new();
+
+                for (well_id, histogram) in &hd_group {
+                    if well_id == "CNTRL" {
+                        continue; //ignore controls
+                    }
+
+                    if let Some(hist) = histogram.get(feat) {
+                        exp_hists.push(hist.data().1.to_vec());
+                        well_ids.push(well_id.clone());
+                    }
+                }
+
+                let exp_arr = Array2::from_shape_vec(
+                    (nbins, exp_hists.len()),
+                    exp_hists.iter().flatten().cloned().collect(),
+                )
+                .expect("Failed to create experimental array!");
+
+                let cntrl_hist = hd_group
+                    .get("CNTRL")
+                    .and_then(|hist| hist.get(feat))
+                    .expect("Control histogram not found!");
+                let cntrl_arr = Array1::from(cntrl_hist.data().1.to_vec());
+
+                // do the actual HD calculation
+                let factor = 1.0;
+                let hd_score = hist_square_diff(&exp_arr, &cntrl_arr, factor)
+                    .expect("Unable to calculat HistDiff");
+
+                for (well_id, hd_value) in well_ids.iter().zip(hd_score.into_iter()) {
+                    local_scores
+                        .entry(well_id.clone())
+                        .or_insert_with(HashMap::new)
+                        .insert(feat.clone(), hd_value);
+                }
+
+                return local_scores;
+            })
+            .collect();
+
+        for local_scores in per_feature_scores {
+            for (well_id, feat_map) in local_scores {
+                hd_results
+                    .entry(well_id)
+                    .or_insert_with(HashMap::new)
+                    .extend(feat_map);
+            }
+        }
     }
 
-    let end = start.elapsed(); // WARNING: delete this
-    println!("INIT LOOP TIME: {:?}", end);
-    println!("function reached the end!");
+    // println!("{:?}", hd_results);
 
+    if verbose {
+        let end = start.elapsed(); // WARNING: this the end of the second timer
+        println!("Calculation procedure run time: {:?}", end);
+    }
     Ok(())
 }
 
@@ -174,6 +297,6 @@ mod hd_test {
         let vehicle_cntrls = vec!["A1".to_string(), "P24".to_string()];
         let nbins = 20;
 
-        let _ = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, false, None);
+        let _ = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, true, None, None);
     }
 }
