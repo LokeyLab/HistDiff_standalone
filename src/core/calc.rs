@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use super::histograms::*;
 use super::utils::*;
+use core::f64;
 use csv;
 use dashmap::DashMap;
 use rayon::iter::IntoParallelIterator;
@@ -145,6 +146,16 @@ pub fn calculate_scores<P: AsRef<Path>>(
         vec![well_384]
     };
 
+    let mut hd_results: HashMap<String, HashMap<String, f64>> = HashMap::new();
+
+    for group in block_def {
+        let select_wells: HashSet<String> = clean_well_names(&group)
+            .into_iter()
+            .collect::<HashSet<String>>();
+
+        // grab wells from selected wells
+    }
+
     let end = start.elapsed(); // WARNING: delete this
     println!("INIT LOOP TIME: {:?}", end);
     println!("function reached the end!");
@@ -163,15 +174,6 @@ mod hd_test {
         let vehicle_cntrls = vec!["A1".to_string(), "P24".to_string()];
         let nbins = 20;
 
-        let _ = calculate_scores(
-            fp,
-            &id_cols,
-            &vehicle_cntrls,
-            nbins,
-            None,
-            false,
-            None,
-            None,
-        );
+        let _ = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, false, None);
     }
 }
