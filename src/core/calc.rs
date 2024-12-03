@@ -1,19 +1,17 @@
-#![allow(unused_imports, dead_code)]
+#![allow(dead_code)]
 use super::histograms::*;
 use super::utils::*;
-use core::time;
 use csv;
 use dashmap::DashMap;
 use ndarray::Array1;
 use ndarray::Array2;
-use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelBridge;
 use rayon::iter::ParallelIterator;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::BufReader;
 use std::path::Path;
 use std::time::Instant;
 use std::usize;
