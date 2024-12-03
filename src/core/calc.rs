@@ -8,6 +8,7 @@ use ndarray::Array1;
 use ndarray::Array2;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelBridge;
 use rayon::iter::ParallelIterator;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -26,7 +27,7 @@ pub fn calculate_scores<P: AsRef<Path>>(
     verbose: bool,
     block_def: Option<Vec<Vec<String>>>,
     plate_def: Option<Vec<String>>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<HashMap<String, HashMap<String, f64>>, Box<dyn Error>> {
     let plate_def = match plate_def {
         Some(definition) => definition,
         None => plate_definition(),
@@ -64,17 +65,20 @@ pub fn calculate_scores<P: AsRef<Path>>(
     //      feature: Histogram Struct
     //      }
     // }
-    let mut histograms: HashMap<String, HashMap<String, Hist1D>> = HashMap::new();
+    // let mut histograms: HashMap<String, HashMap<String, Hist1D>> = HashMap::new();
 
     let start = Instant::now(); // WARN: you can delete this if you want
 
-    for res in csv_reader.records() {
-        let record = res?;
+    // WARNING: PARALLEL VERSION BELOW
 
-        // in the event of multiple columns being the "id column"
-        // note: if the id column is multiple columns then they
-        // must be specified in the plate definition parameters
-        // with "_"s separating each value of each columns
+    let concurrent_histograms: DashMap<String, DashMap<String, Hist1D>> = DashMap::new();
+
+    csv_reader.into_records().par_bridge().for_each(|res| {
+        let record = match res {
+            Ok(record) => record,
+            Err(_) => return,
+        };
+
         let curr_well = id_cols
             .iter()
             .map(|id_feat| {
@@ -86,11 +90,11 @@ pub fn calculate_scores<P: AsRef<Path>>(
             .join("_");
 
         if !plate_def.contains(&curr_well) {
-            continue;
+            return;
         }
 
         let feature_values: Vec<(&str, f64)> = feat_idx
-            .par_iter()
+            .iter()
             .map(|&i| {
                 let feat_name = &headers[i];
                 let value = record.get(i).unwrap().parse::<f64>().unwrap_or(f64::NAN);
@@ -98,30 +102,36 @@ pub fn calculate_scores<P: AsRef<Path>>(
             })
             .collect();
 
-        // init histograms
-        histograms.entry(curr_well.clone()).or_insert_with(|| {
-            features
-                .par_iter()
-                .map(|feat| {
-                    let (_min_max_feat, min_max_vals) =
-                        min_max_map.iter().find(|(f, _)| f == feat).unwrap();
-                    (
-                        feat.clone(),
-                        Hist1D::new(nbins, min_max_vals.xlow, min_max_vals.xhigh),
-                    )
-                })
-                .collect::<HashMap<String, Hist1D>>()
-        });
+        concurrent_histograms
+            .entry(curr_well.clone())
+            .or_insert_with(|| {
+                let dh: DashMap<String, Hist1D> = DashMap::new();
+                for feat in &features {
+                    let (_, vals) = min_max_map.iter().find(|(f, _)| f == feat).unwrap();
+                    dh.insert(feat.clone(), Hist1D::new(nbins, vals.xlow, vals.xhigh));
+                }
 
-        let well_histogram = histograms.get_mut(&curr_well).unwrap();
+                return dh;
+            });
 
-        for (feat, value) in feature_values {
-            if let Some(hist) = well_histogram.get_mut(feat) {
-                let ref_value = &[value];
-                hist.fill(ref_value);
+        let well_histogram = concurrent_histograms.get_mut(&curr_well).unwrap();
+        feature_values.iter().for_each(|(feat, value)| {
+            if let Some(mut hist) = well_histogram.get_mut(*feat) {
+                hist.fill(&[*value]);
             }
-        }
-    }
+        });
+    });
+
+    // convert back
+    let histograms: HashMap<String, HashMap<String, Hist1D>> = concurrent_histograms
+        .into_iter()
+        .map(|(well_id, well_hist)| {
+            let hists = well_hist.into_iter().collect();
+            (well_id, hists)
+        })
+        .collect();
+
+    // WARNING: END OF PARALLEL VERSION\
 
     if verbose {
         let end = start.elapsed(); // WARNING: delete this
@@ -273,7 +283,8 @@ pub fn calculate_scores<P: AsRef<Path>>(
         let end = start.elapsed(); // WARNING: this the end of the second timer
         println!("Calculation procedure run time: {:?}", end);
     }
-    Ok(())
+
+    return Ok(hd_results);
 }
 
 #[cfg(test)]
@@ -284,7 +295,7 @@ mod hd_test {
     fn test_hd() {
         let fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/024ebc52-9579-11ef-b032-02420a00010f_cellbycell_HD_input.tsv";
         let id_cols = vec!["id".to_string()];
-        let vehicle_cntrls = vec!["A1".to_string(), "P24".to_string()];
+        let vehicle_cntrls = vec!["A1".to_string(), "P24".to_string(), "K12".to_string()];
         let nbins = 20;
 
         let _ = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, true, None, None);
