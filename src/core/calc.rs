@@ -113,7 +113,7 @@ pub fn calculate_scores<P: AsRef<Path>>(
             });
 
         let well_histogram = concurrent_histograms.get_mut(&curr_well).unwrap();
-        feature_values.iter().for_each(|(feat, value)| {
+        feature_values.par_iter().for_each(|(feat, value)| {
             if let Some(mut hist) = well_histogram.get_mut(*feat) {
                 hist.fill(&[*value]);
             }
