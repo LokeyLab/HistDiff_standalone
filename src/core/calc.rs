@@ -69,6 +69,10 @@ pub fn calculate_scores<P: AsRef<Path>>(
 
     // WARNING: PARALLEL VERSION BELOW
 
+    // NOTE: So the below code isn't really multithreaded.
+    // Why? Well this is because into_records() isn't producing
+    // records fast enough for rayon to distrbute tasks amongst its workers
+    // With that said, it rayon might kick in for smaller datasets
     let concurrent_histograms: DashMap<String, DashMap<String, Hist1D>> = DashMap::new();
 
     csv_reader.into_records().par_bridge().for_each(|res| {
@@ -129,10 +133,10 @@ pub fn calculate_scores<P: AsRef<Path>>(
         })
         .collect();
 
-    // WARNING: END OF PARALLEL VERSION\
+    // WARNING: END OF PARALLEL VERSION
 
     if verbose {
-        let end = start.elapsed(); // WARNING: delete this
+        let end = start.elapsed();
         println!("INIT LOOP TIME: {:?}", end);
     }
 
@@ -275,8 +279,6 @@ pub fn calculate_scores<P: AsRef<Path>>(
         }
     }
 
-    // println!("{:?}", hd_results);
-
     if verbose {
         let end = start.elapsed(); // WARNING: this the end of the second timer
         println!("Calculation procedure run time: {:?}", end);
@@ -296,6 +298,12 @@ mod hd_test {
         let vehicle_cntrls = vec!["A1".to_string(), "P24".to_string(), "K12".to_string()];
         let nbins = 20;
 
-        let _ = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, true, None, None);
+        let hd_res = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, true, None, None)
+            .expect("No HD results");
+
+        let output_fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/rust_out.csv";
+        let _ = write_csv(&hd_res, output_fp);
+
+        println!("hd_res length {:?}", hd_res.len());
     }
 }

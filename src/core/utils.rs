@@ -1,6 +1,9 @@
 #![allow(unused_parens)]
 
-use std::u8;
+use core::f64;
+use std::{collections::HashMap, error::Error, path::Path, u8};
+
+use csv::Writer;
 pub fn exponential_smoothing(x: &[f64], alpha: f64) -> Vec<f64> {
     let n = x.len();
     let mut smoothing: Vec<f64> = Vec::with_capacity(n);
@@ -67,6 +70,41 @@ pub fn plate_definition() -> Vec<String> {
     }
 
     return res;
+}
+
+pub fn write_csv<P: AsRef<Path>>(
+    hd_res: &HashMap<String, HashMap<String, f64>>,
+    output_file: P,
+) -> Result<(), Box<dyn Error>> {
+    let mut writer = Writer::from_path(output_file)?;
+
+    let mut feat_names = hd_res
+        .values()
+        .flat_map(|feat_map| feat_map.keys().cloned())
+        .collect::<Vec<String>>();
+
+    feat_names.sort();
+    feat_names.dedup();
+
+    // header row
+    let mut header = vec!["id".to_string()];
+    header.extend(feat_names.clone());
+    let _ = writer.write_record(header);
+
+    // write data
+    for (well_id, feature_map) in hd_res {
+        let mut row = vec![well_id.clone()];
+        for feat in &feat_names {
+            let value = feature_map.get(feat).unwrap_or(&f64::NAN);
+            row.push(value.to_string());
+        }
+        let _ = writer.write_record(row);
+    }
+
+    // flush and close
+    writer.flush()?;
+
+    return Ok(());
 }
 
 #[cfg(test)]
