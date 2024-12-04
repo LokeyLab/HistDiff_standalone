@@ -293,7 +293,9 @@ mod hd_test {
 
     #[test]
     fn test_hd() {
-        let fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/024ebc52-9579-11ef-b032-02420a00010f_cellbycell_HD_input.tsv";
+        // let fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/024ebc52-9579-11ef-b032-02420a00010f_cellbycell_HD_input.tsv";
+
+        let fp = "/Users/dterciano/Desktop/LokeyLabFiles/TargetMol/GR_followup/dataset/cell_by_cell_data/024ebc52-9579-11ef-b032-02420a00010f_cellbycell_HD_input.tsv";
         let id_cols = vec!["id".to_string()];
         let vehicle_cntrls = vec!["A1".to_string(), "P24".to_string(), "K12".to_string()];
         let nbins = 20;
@@ -301,8 +303,8 @@ mod hd_test {
         let hd_res = calculate_scores(fp, &id_cols, &vehicle_cntrls, nbins, None, true, None, None)
             .expect("No HD results");
 
-        let output_fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/rust_out.csv";
-        let _ = write_csv(&hd_res, output_fp);
+        // let output_fp = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/rust_out.csv";
+        // let _ = write_csv(&hd_res, output_fp);
 
         println!("hd_res length {:?}", hd_res.len());
     }
