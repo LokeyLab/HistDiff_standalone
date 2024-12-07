@@ -127,9 +127,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         cli.verbose,
         None,
         plate_def,
-    );
+    )?;
 
-    println!("{:?}", hd_result?.len());
+    // println!("{:?}", hd_result?.len());
+
+    let _ = write_csv(&hd_result, &cli.output_path);
 
     return Ok(());
 }
