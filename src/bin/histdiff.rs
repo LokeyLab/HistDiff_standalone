@@ -36,7 +36,7 @@ struct Cli {
     reference_column: String,
 
     #[arg(
-        short,
+        short = 'd',
         long,
         help = "Specify the name of the index column of the cell by cell data file (This is under the assumption that the rest of the columns are numerical features. Note: program will break if there is additional meta columns not taken care of.)"
     )]
