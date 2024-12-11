@@ -12,7 +12,7 @@ use std::usize;
 
 use super::utils::{exponential_smoothing, normalize};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Hist1D {
     nbins: usize,
     xlow: f64,

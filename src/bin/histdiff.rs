@@ -8,7 +8,7 @@ use HistDiff_standalone::*;
 #[command(version, about = "Calculates HistDiff scores for cell data", long_about = None, name = "HistDiff (rust edition)")]
 struct Cli {
     #[arg(
-        short,
+        short = 'i',
         long,
         help = "path to cell by cell data (as a tab delimited file)"
     )]

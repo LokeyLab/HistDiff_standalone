@@ -242,16 +242,22 @@ pub fn calculate_scores<P: AsRef<Path>>(
                 }
 
                 let exp_arr = Array2::from_shape_vec(
-                    (nbins, exp_hists.len()),
+                    (exp_hists.len(), nbins),
                     exp_hists.iter().flatten().cloned().collect(),
                 )
-                .expect("Failed to create experimental array!");
+                .expect("Failed to create experimental array!")
+                .reversed_axes();
 
                 let cntrl_hist = hd_group
                     .get("CNTRL")
                     .and_then(|hist| hist.get(feat))
                     .expect("Control histogram not found!");
                 let cntrl_arr = Array1::from(cntrl_hist.data().1.to_vec());
+
+                //WARNING: DELETE THE BELOW
+                // if feat == "Nuclei-Cell_Region_Alexa_488_(global)_Axial_Length_Ratio" {
+                //     println!("{:?}", exp_arr);
+                // }
 
                 // do the actual HD calculation
                 let factor = 1.0;

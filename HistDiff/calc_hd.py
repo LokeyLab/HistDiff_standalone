@@ -117,10 +117,6 @@ def calcHistDiffScore(
             vehicle_control_df, index=hd_group.columns, columns=["VEHICLE_CONTROL"]
         ).T
 
-        vehicle_control_df.to_csv(
-            "~/git_repos/HistDiff_standalone/temp_store/cntrl_new.csv"
-        )
-
         # Add controls
         print("Adding vehicle controls to table", file=sys.stderr)
         hd_group = pd.concat([hd_group, vehicle_control_df])
@@ -137,6 +133,10 @@ def calcHistDiffScore(
             control = np.array(normalized_hists.loc["VEHICLE_CONTROL", feat])
 
             experimental = np.transpose(np.array(normalized_hists[feat].to_list()))
+
+            # WARNING: delete the below
+            # if feat == "Nuclei-Cell_Region_Alexa_488_(global)_Axial_Length_Ratio":
+            #     print(experimental, experimental.shape)
 
             hd = HistSquareDiff(exp=experimental, ctrl=control)
 
