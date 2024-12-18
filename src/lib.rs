@@ -1,4 +1,5 @@
 mod core;
+mod formatter;
 
 pub use core::{
     calc::*,
