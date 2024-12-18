@@ -1,4 +1,5 @@
 #![allow(unused_imports, dead_code)]
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -71,4 +72,28 @@ fn majority_float(row: &[&str], threshold: f64) -> bool {
         .unwrap();
 
     return float_count >= min_n_floats;
+}
+
+pub fn find_common_features(true_feats: &[String], bad_feats: &[String]) -> Vec<String> {
+    let set_true_feats: HashSet<&str> = true_feats.iter().map(|s| s.as_str()).collect();
+    let set_bad_feats: HashSet<&str> = bad_feats.iter().map(|s| s.as_str()).collect();
+
+    let mut common_feats: Vec<String> = set_true_feats
+        .intersection(&set_bad_feats)
+        .map(|f| f.to_string())
+        .collect();
+
+    for feat in true_feats {
+        let cond1 = bad_feats
+            .iter()
+            .filter(|i| i.len() > 2)
+            .any(|i| feat.contains(i));
+        let cond2 = bad_feats.iter().filter(|i| i.len() <= 2).any(|i| i == feat);
+
+        if (cond1 || cond2) && !common_feats.contains(feat) {
+            common_feats.push(feat.clone());
+        }
+    }
+
+    return common_feats;
 }
