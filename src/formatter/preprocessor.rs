@@ -36,7 +36,7 @@ where
 
     let mut final_cols: Vec<String> = headers
         .iter()
-        .filter(|h| !useless_set.contains(h.as_str()) && id_set.contains(h.as_str()))
+        .filter(|h| !useless_set.contains(h.as_str()) && !id_set.contains(h.as_str()))
         .cloned()
         .collect();
 
