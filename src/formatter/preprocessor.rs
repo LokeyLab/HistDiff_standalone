@@ -64,10 +64,19 @@ where
         })
         .collect();
 
-    let records: Vec<StringRecord> = csv_reader.records().collect::<Result<Vec<_>, _>>()?;
+    // let records: Vec<StringRecord> = csv_reader.records().collect::<Result<Vec<_>, _>>()?;
 
-    let mut final_rows: Vec<Vec<String>> = Vec::with_capacity(records.len());
-    for rec in records {
+    // write the final oputput
+    let mut wrtr = WriterBuilder::new()
+        .delimiter(b'\t')
+        .from_path(output_file)?;
+
+    let _ = wrtr.write_record(&final_headers)?;
+
+    // let mut final_rows: Vec<Vec<String>> = Vec::with_capacity(records.len());
+    // let mut final_rows: Vec<Vec<String>> = Vec::new();
+    for rec_result in csv_reader.records() {
+        let rec = rec_result.unwrap();
         let id_val = build_id(&rec, &headers, id_col);
         let renamed_id = rename_index(&id_val);
 
@@ -79,8 +88,11 @@ where
             row.push(val.to_string());
         }
 
-        final_rows.push(row);
+        let _ = wrtr.write_record(&row)?;
+        // final_rows.push(row);
     }
+
+    let _ = wrtr.flush();
 
     let verification: Vec<_> = final_headers
         .iter()
@@ -90,18 +102,6 @@ where
         eprintln!("Useless features still exist: {:?}", verification);
         return Err("Useless features present in final output".into());
     }
-
-    // write the final oputput
-    let mut wrtr = WriterBuilder::new()
-        .delimiter(b'\t')
-        .from_path(output_file)?;
-
-    wrtr.write_record(&final_headers)?;
-    for row in final_rows {
-        wrtr.write_record(&row)?;
-    }
-
-    let _ = wrtr.flush();
     return Ok(());
 }
 
