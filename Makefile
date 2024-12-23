@@ -1,5 +1,5 @@
 TARGET_DIR := ./target/release
-BIN_NAME := histdiff
+BIN_NAME := histdiff signals_formatter
 INSTALL_DIR := .
 
 all: build install
@@ -8,10 +8,14 @@ build:
 	cargo build --release
 
 install: build
-	ln -s $(TARGET_DIR)/$(BIN_NAME) ./$(BIN_NAME)
+	for bin in  $(BIN_NAME); do \
+		ln -s $(TARGET_DIR)/$$bin ./$$bin; \
+	done
 
 clean:
 	cargo clean
-	rm ./$(BIN_NAME)
+	for bin in $(BIN_NAME); do \
+		rm ./$$bin; \
+	done
 
 .PHONY: all build install clean
