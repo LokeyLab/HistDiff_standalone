@@ -1,18 +1,46 @@
-#![allow(unused_imports)]
-use clap::Parser;
+#![allow(unused_imports, unused_variables)]
+use clap::*;
+use core::str;
 use csv::ReaderBuilder;
 use std::collections::{HashMap, HashSet};
 use std::{error::Error, fs::File, io::BufReader, path::Path};
 use HistDiff_standalone::{find_common_features, integrity_check, preprocess_data};
 
+#[derive(Parser, Debug)]
+#[command(version, about = "Formats Raw Signals Cell Data files for HistDiff processing", long_about = None, name = "Signals Formatter for HistDiff")]
+struct Cli {
+    #[arg(short, long, help = "input file as a tab delimited file")]
+    in_file: String,
+
+    #[arg(
+        short = 'n',
+        long,
+        help = "integrity file out_path (must end in .txt or .tsv) [This does integrity check on a file]"
+    )]
+    integrity_file: Option<String>,
+
+    #[arg(
+        short,
+        long,
+        help = "File path for final preprocessed data (must end in .tsv or .txt)"
+    )]
+    out_path: Option<String>,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    let file = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/signals/d0a5160e-9544-11ee-ac86-02420a000112_cellbycell.tsv";
-    let integrity_out = Some(
-        "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/rust_integrity.txt",
-    );
-    let output_path = Some(
-        "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/final_rust_format.tsv",
-    );
+    let args = Cli::parse();
+
+    // let file = "/home/derfelt/git_repos/HistDiff_standalone/temp_store/signals/d0a5160e-9544-11ee-ac86-02420a000112_cellbycell.tsv";
+    // let integrity_out = Some(
+    //     "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/rust_integrity.txt",
+    // );
+    // let output_path = Some(
+    //     "/home/derfelt/git_repos/HistDiff_standalone/temp_store/cellbycell/final_rust_format.tsv",
+    // );
+
+    let file = args.in_file.as_str();
+    let integrity_out = args.integrity_file.as_ref();
+    let output_path = args.out_path.as_ref();
 
     let in_file = File::open(file)?;
     let reader = BufReader::new(in_file);
