@@ -8,14 +8,18 @@ build:
 	cargo build --release
 
 install: build
-	for bin in  $(BIN_NAME); do \
-		ln -s $(TARGET_DIR)/$$bin ./$$bin; \
-	done
+	ln -s $(TARGET_DIR)/histdiff ./histdiff_bin
+	ln -s $(TARGET_DIR)/signals_formatter ./signals_formatter_bin
+	# for bin in $(BIN_NAME); do \
+	# 	ln -s $(TARGET_DIR)/$$bin ./$$bin; \
+	# done
 
 clean:
 	cargo clean
-	for bin in $(BIN_NAME); do \
-		rm ./$$bin; \
-	done
+	rm ./histdiff_bin
+	rm ./signals_formatter_bin
+	# for bin in $(BIN_NAME); do \
+	# 	rm ./$$bin; \
+	# done
 
 .PHONY: all build install clean
